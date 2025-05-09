@@ -1,3 +1,1 @@
-Sonita Marija un Fredis
-
-es esmu te - Fredis
+Izveidot Python programmu, kas pieprasa lietotājam ievadīt savu lietotājvārdu un paroli, autorizējas Rīgas Tehniskās Universitātes e-studiju sistēmā ORTUS un automātiski iegūst visas atzīmes no studiju kursiem. Programmai jāizmanto requests un BeautifulSoup bibliotēkas, lai veiktu autentifikāciju un datu iegūšanu (web scraping). Pēc autorizācijas skriptam jāatrod un jāapkopo Excel failā lietotājam saprotamā formātā visi pieejamie vērtējumi – piemēram, kursa nosaukums, atzīme, datums un piezīmes. Jānodrošina kļūdu apstrāde gadījumiem, kad autorizācija neizdodas vai atzīmes nav pieejamas. Programma paredzēta tikai personīgai lietošanai mācību nolūkos, netiek glabāti lietotāja dati, un tās izmantošana nedrīkst pārkāpt ORTUS lietošanas noteikumus
