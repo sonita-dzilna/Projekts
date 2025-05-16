@@ -1,44 +1,139 @@
+import os
 import requests
+from collections import Counter
 from bs4 import BeautifulSoup
-import getpass
+import re
 
-# Lietotāja ievade
-username = input("Ievadi ORTUS lietotājvārdu: ")
-password = getpass.getpass("Ievadi paroli: ")
+# 1. Pārbauda un izveido failu ievadei
+filename = "ievade.txt"
+if not os.path.exists(filename):
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("Ievadi savu tekstu šeit...")
 
-# Sesija, lai saglabātu autentifikācijas stāvokli
-session = requests.Session()
+print(f"\nLūdzu, ievadi tekstu failā: {filename}")
+input("Kad esi gatavs, nospied Enter...")
 
-# ORTUS sākumlapa vai autentifikācijas URL (fiktīvs piemērs)
-login_url = 'https://ortus.lu.lv/login/index.php'
+# 2. Nolasa failu un apstrādā vārdus
+with open(filename, "r", encoding="utf-8") as f:
+    text = f.read().lower()
 
-# Atkarībā no ORTUS autentifikācijas sistēmas šie lauki var būt dažādi
-payload = {
-    'username': username,
-    'password': password
+words = [word.strip(".,!?;:()[]{}\"") for word in text.split()]
+word_counts = Counter(words)
+repeated_words = [word for word, count in word_counts.items() if count > 1 and word]
+
+print("\n🔁 Atkārtojošie vārdi tekstā:")
+print(", ".join(repeated_words) if repeated_words else "Nav atkārtojošu vārdu.")
+
+# Vārdi, kurus vēlamies izslēgt no rezultāta
+exclude_words = {"locīšana", "frazēma", "idioma", "kolokācija", "sarunvaloda", "taksons", "piemēri", "frazeoloģisms", "tulkojumi", "vārdkoptermins"}
+
+def extract_single_word_synonyms(raw_list):
+    cleaned = []
+    for item in raw_list:
+        item = re.sub(r'\d+', '', item)
+        item = item.strip().lower()
+        if item in exclude_words:
+            continue
+        if item and (' ' not in item) and re.match(r'^[a-zāčēģīķļņšūž-]+$', item):
+            cleaned.append(item)
+    return sorted(set(cleaned))
+
+# Lokāls vārdšķiru vārdnīca populārākajiem vārdiem
+pos_lookup = {
+    "un": "saiklis",
+    "vai": "saiklis",
+    "bet": "saiklis",
+    "par": "prievārds",
+    "ar": "prievārds",
+    "uz": "prievārds",
+    "es": "vietniekvārds",
+    "tu": "vietniekvārds",
+    "viņš": "vietniekvārds",
+    "mēs": "vietniekvārds",
+    "jūs": "vietniekvārds",
+    "viņi": "vietniekvārds",
+    "tas": "vietniekvārds",
+    "šo": "vietniekvārds",
+    "pie": "prievārds",
+    "domāt": "darbības vārds",
+    "emocijas": "lietvārds",
+    "suns": "lietvārds",
+    "rīts": "lietvārds",
+    # papildini pēc vajadzības
 }
 
-# Autorizācija
-response = session.post(login_url, data=payload)
+# Funkcija vārdšķiras iegūšanai
+def get_word_pos(word):
+    # 1. Pārbauda lokālo vārdnīcu
+    if word in pos_lookup:
+        return pos_lookup[word]
 
-# Pārbaudām, vai autorizācija bija veiksmīga
-if "Nederīgs lietotājvārds vai parole" in response.text or response.url == login_url:
-    print("Autorizācija neizdevās. Pārbaudi datus.")
-else:
-    print("Autorizācija veiksmīga!")
+    # 2. Scrapo no Tezaurs.lv
+    url = f"https://tezaurs.lv/{word}:1"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return None
+    except requests.RequestException:
+        return None
 
-    # Iet uz atzīmju lapu – piemērs!
-    grades_url = 'https://estudijas.lu.lv/my/grades.php'
-    grades_response = session.get(grades_url)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    # Parsējam HTML ar BeautifulSoup
-    soup = BeautifulSoup(grades_response.text, 'html.parser')
+    # Meklē elementus, kur parasti ir vārdšķira
+    # Piemēram, mēģinām atrast <p> vai <span> ar atbilstošu klasi
+    pos_tags = soup.find_all(["span", "p", "div"], class_=re.compile(r"(part-of-speech|pos|grammatical)"))
+    for tag in pos_tags:
+        text = tag.get_text(strip=True).lower()
+        if text:
+            return text
 
-    # Šeit ir atkarīgs no faktiskās HTML struktūras
-    print("\nTavas atzīmes:")
-    for row in soup.select('table.grades tr'):
-        columns = row.find_all('td')
-        if columns:
-            course = columns[0].get_text(strip=True)
-            grade = columns[1].get_text(strip=True)
-            print(f"{course}: {grade}")
+    # Ja nav atrasts ar speciālu klasi, meklē tekstā vārdšķiras vārdus
+    text = soup.get_text(separator="\n").lower()
+    pos_words = ["lietvārds", "darbības vārds", "īpašības vārds", "skaitļa vārds", "prievārds", "saiklis", "piedēklis", "daļa", "apstākļa vārds", "vietniekvārds"]
+    for pw in pos_words:
+        if pw in text:
+            return pw
+
+    return None
+
+# Funkcija sinonīmu iegūšanai
+def get_hidden_synonyms(word):
+    url = f"https://tezaurs.lv/{word}:1"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return []
+    except requests.RequestException:
+        return []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    synonyms = set()
+
+    for block in soup.find_all("div", class_="synonyms"):
+        for item in block.find_all(["li", "span"]):
+            text = item.get_text(strip=True)
+            if text:
+                synonyms.add(text)
+
+    for hidden in soup.find_all(style=True):
+        style = hidden['style'].replace(" ", "").lower()
+        if 'display:none' in style:
+            for item in hidden.find_all(["li", "span"]):
+                text = item.get_text(strip=True)
+                if text:
+                    synonyms.add(text)
+
+    return list(synonyms)
+
+# 4. Iegūst vārdus ar vārdšķiru un sinonīmus, izvada tikai tos vārdus, kam ir atrasti sinonīmi
+for word in repeated_words:
+    pos = get_word_pos(word)
+    # Izslēdz no izvadīšanas saikļus, ja nevēlies redzēt
+    if pos == "saiklis":
+        continue
+
+    raw_synonyms = get_hidden_synonyms(word)
+    cleaned_synonyms = extract_single_word_synonyms(raw_synonyms)
+    if cleaned_synonyms:
+        print(f"\n Sinonīmi vārdam '{word}' ({pos if pos else 'vārdšķira nav atrasta'}):")
+        print(", ".join(cleaned_synonyms))
