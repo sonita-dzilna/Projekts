@@ -17,15 +17,39 @@ input("Kad esi gatavs, nospied Enter...")
 with open(filename, "r", encoding="utf-8") as f:
     text = f.read().lower()
 
-words = [word.strip(".,!?;:()[]{}\"") for word in text.split()]
-word_counts = Counter(words)
-repeated_words = [word for word, count in word_counts.items() if count > 1 and word]
+words = re.findall(r'\b[a-zāčēģīķļņšūž\-]+\b', text.lower())
+
+#noteikt lemma - vārda pamatforma
+def get_lemma(word):
+    url = f"https://tezaurs.lv/{word}"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return word
+    except requests.RequestException:
+        return word
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Mēģina atrast bloku ar tekstu "forma šķirklī"
+    for div in soup.find_all("div", class_="listItem"):
+        if "forma šķirklī" in div.get_text().lower():
+            link = div.find("a", href=True)
+            if link:
+                lemma = link.get_text(strip=True).lower()
+                return lemma
+            
+    return word
+
+lemmas = [get_lemma(word) for word in words]
+lemma_counts = Counter(lemmas)
+repeated_lemmas = [lemma for lemma, count in lemma_counts.items() if count > 1 and lemma]
 
 print("\n🔁 Atkārtojošie vārdi tekstā:")
-print(", ".join(repeated_words) if repeated_words else "Nav atkārtojošu vārdu.")
+print(", ".join(repeated_lemmas) if repeated_lemmas else "Nav atkārtojošu vārdu.")
 
 # Vārdi, kurus vēlamies izslēgt no rezultāta
-exclude_words = {"locīšana", "frazēma", "idioma", "kolokācija", "sarunvaloda", "taksons", "piemēri", "frazeoloģisms", "tulkojumi", "vārdkoptermins"}
+exclude_words = {"apvidvārds", "žargonisms", "locīšana", "frazēma", "idioma", "kolokācija", "sarunvaloda", "taksons", "piemēri", "frazeoloģisms", "tulkojumi", "vārdkoptermins"}
 
 def extract_single_word_synonyms(raw_list):
     cleaned = []
@@ -69,7 +93,7 @@ def get_word_pos(word):
         return pos_lookup[word]
 
     # 2. Scrapo no Tezaurs.lv
-    url = f"https://tezaurs.lv/{word}:1"
+    url = f"https://tezaurs.lv/{word}"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
@@ -98,7 +122,7 @@ def get_word_pos(word):
 
 # Funkcija sinonīmu iegūšanai
 def get_hidden_synonyms(word):
-    url = f"https://tezaurs.lv/{word}:1"
+    url = f"https://tezaurs.lv/{word}"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
@@ -109,7 +133,7 @@ def get_hidden_synonyms(word):
     soup = BeautifulSoup(response.text, "html.parser")
     synonyms = set()
 
-    for block in soup.find_all("div", class_="synonyms"):
+    for block in soup.find_all(["div", "ul"], class_="synonyms"):
         for item in block.find_all(["li", "span"]):
             text = item.get_text(strip=True)
             if text:
@@ -126,14 +150,12 @@ def get_hidden_synonyms(word):
     return list(synonyms)
 
 # 4. Iegūst vārdus ar vārdšķiru un sinonīmus, izvada tikai tos vārdus, kam ir atrasti sinonīmi
-for word in repeated_words:
-    pos = get_word_pos(word)
-    # Izslēdz no izvadīšanas saikļus, ja nevēlies redzēt
+print("\n==== REZULTĀTI ====")
+for lemma in repeated_lemmas:
+    pos = get_word_pos(lemma)
     if pos == "saiklis":
         continue
-
-    raw_synonyms = get_hidden_synonyms(word)
-    cleaned_synonyms = extract_single_word_synonyms(raw_synonyms)
-    if cleaned_synonyms:
-        print(f"\n Sinonīmi vārdam '{word}' ({pos if pos else 'vārdšķira nav atrasta'}):")
-        print(", ".join(cleaned_synonyms))
+    synonyms = extract_single_word_synonyms(get_hidden_synonyms(lemma))
+    if synonyms:
+        print(f"\nSinonīmi vārdam '{lemma}' ({pos if pos else 'vārdšķira nav atrasta'}):")
+        print(", ".join(synonyms))
