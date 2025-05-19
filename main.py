@@ -4,20 +4,6 @@ from collections import Counter
 from bs4 import BeautifulSoup
 import re
 
-# 1. Pārbauda un izveido failu ievadei
-filename = "ievade.txt"
-if not os.path.exists(filename):
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write("Ievadi savu tekstu šeit...")
-
-print(f"\nLūdzu, ievadi tekstu failā: {filename}")
-input("Kad esi gatavs, nospied Enter...")
-
-# 2. Nolasa failu un apstrādā vārdus
-with open(filename, "r", encoding="utf-8") as f:
-    text = f.read().lower()
-
-words = re.findall(r'\b[a-zāčēģīķļņšūž\-]+\b', text.lower())
 
 #noteikt lemma - vārda pamatforma
 def get_lemma(word):
@@ -41,16 +27,6 @@ def get_lemma(word):
             
     return word
 
-lemmas = [get_lemma(word) for word in words]
-lemma_counts = Counter(lemmas)
-repeated_lemmas = [lemma for lemma, count in lemma_counts.items() if count > 1 and lemma]
-
-print("\n🔁 Atkārtojošie vārdi tekstā:")
-print(", ".join(repeated_lemmas) if repeated_lemmas else "Nav atkārtojošu vārdu.")
-
-# Vārdi, kurus vēlamies izslēgt no rezultāta
-exclude_words = {"apvidvārds", "žargonisms", "locīšana", "frazēma", "idioma", "kolokācija", "sarunvaloda", "taksons", "piemēri", "frazeoloģisms", "tulkojumi", "vārdkoptermins"}
-
 def extract_single_word_synonyms(raw_list):
     cleaned = []
     for item in raw_list:
@@ -62,29 +38,6 @@ def extract_single_word_synonyms(raw_list):
             cleaned.append(item)
     return sorted(set(cleaned))
 
-# Lokāls vārdšķiru vārdnīca populārākajiem vārdiem
-pos_lookup = {
-    "un": "saiklis",
-    "vai": "saiklis",
-    "bet": "saiklis",
-    "par": "prievārds",
-    "ar": "prievārds",
-    "uz": "prievārds",
-    "es": "vietniekvārds",
-    "tu": "vietniekvārds",
-    "viņš": "vietniekvārds",
-    "mēs": "vietniekvārds",
-    "jūs": "vietniekvārds",
-    "viņi": "vietniekvārds",
-    "tas": "vietniekvārds",
-    "šo": "vietniekvārds",
-    "pie": "prievārds",
-    "domāt": "darbības vārds",
-    "emocijas": "lietvārds",
-    "suns": "lietvārds",
-    "rīts": "lietvārds",
-    # papildini pēc vajadzības
-}
 
 # Funkcija vārdšķiras iegūšanai
 def get_word_pos(word):
@@ -149,8 +102,62 @@ def get_hidden_synonyms(word):
 
     return list(synonyms)
 
+
+
+# 1. Pārbauda un izveido failu ievadei
+filename = "ievade.txt"
+if not os.path.exists(filename):
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("Ievadi savu tekstu šeit...")
+
+print(f"\nLūdzu, ievadi tekstu failā: {filename}")
+input("Kad esi gatavs, nospied Enter...")
+
+# 2. Nolasa failu un apstrādā vārdus
+with open(filename, "r", encoding="utf-8") as f:
+    text = f.read().lower()
+
+words = re.findall(r'\b[a-zāčēģīķļņšūž\-]+\b', text.lower())
+
+
+lemmas = [get_lemma(word) for word in words]
+lemma_counts = Counter(lemmas)
+repeated_lemmas = [lemma for lemma, count in lemma_counts.items() if count > 1 and lemma]
+
+print("\n🔁 Atkārtojošie vārdi tekstā:")
+print(", ".join(repeated_lemmas) if repeated_lemmas else "Nav atkārtojošu vārdu.")
+
+# Vārdi, kurus vēlamies izslēgt no rezultāta
+exclude_words = {"apvidvārds", "žargonisms", "locīšana", "frazēma", "idioma", "kolokācija", "sarunvaloda", "taksons", "piemēri", "frazeoloģisms", "tulkojumi", "vārdkoptermins"}
+
+
+# Lokāls vārdšķiru vārdnīca populārākajiem vārdiem
+pos_lookup = {
+    "un": "saiklis",
+    "vai": "saiklis",
+    "bet": "saiklis",
+    "par": "prievārds",
+    "ar": "prievārds",
+    "uz": "prievārds",
+    "es": "vietniekvārds",
+    "tu": "vietniekvārds",
+    "viņš": "vietniekvārds",
+    "mēs": "vietniekvārds",
+    "jūs": "vietniekvārds",
+    "viņi": "vietniekvārds",
+    "tas": "vietniekvārds",
+    "šo": "vietniekvārds",
+    "pie": "prievārds",
+    "domāt": "darbības vārds",
+    "emocijas": "lietvārds",
+    "suns": "lietvārds",
+    "rīts": "lietvārds",
+    # papildini pēc vajadzības
+}
+
 # 4. Iegūst vārdus ar vārdšķiru un sinonīmus, izvada tikai tos vārdus, kam ir atrasti sinonīmi
 print("\n==== REZULTĀTI ====")
+lemma_to_synonym_map = {}
 for lemma in repeated_lemmas:
     pos = get_word_pos(lemma)
     if pos == "saiklis":
@@ -158,4 +165,76 @@ for lemma in repeated_lemmas:
     synonyms = extract_single_word_synonyms(get_hidden_synonyms(lemma))
     if synonyms:
         print(f"\nSinonīmi vārdam '{lemma}' ({pos if pos else 'vārdšķira nav atrasta'}):")
-        print(", ".join(synonyms))
+        i = 0
+        for word in synonyms:
+            i += 1
+            print(str(i) + ". " + word)
+        print("Ievadiet sinonīma skaitli, ar kuru vēlaties aizstāt vārdus tekstā, vai 0, lai izlaistu vārdu.")
+        cycle = True
+        while (cycle):
+            input_num = input()
+            if not input_num.isnumeric():
+                print("Ievadiet skaitli.")
+            elif int(input_num) > len(synonyms):
+                print("Skaitlis pārāk liels.")
+            elif int(input_num) == 0:
+                cycle = False
+            else:
+                chosen_synonym = synonyms[int(input_num)-1]
+                lemma_to_synonym_map[lemma] = chosen_synonym
+                cycle = False
+
+
+def replace_repeated_words(text, repeated_lemmas):
+    words = re.findall(r'\b\w+\b|[^\w\s]', text, re.UNICODE)
+    modified_text = []
+    prev_end_punct = True
+    lemma_occurrence_count = {lemma: 0 for lemma in repeated_lemmas}
+
+    for i, word in enumerate(words):
+        if re.fullmatch(r'[.!?]', word):
+            prev_end_punct = True
+            modified_text.append(word)
+            continue
+
+        original_word = word
+        word_lower = word.lower()
+        lemma = get_lemma(word_lower)
+
+        if lemma in repeated_lemmas:
+            lemma_occurrence_count[lemma] += 1
+            if lemma in lemma_to_synonym_map and lemma_occurrence_count[lemma] % 2 == 0:
+                synonym = lemma_to_synonym_map[lemma]
+                suffix = get_suffix_from_word(word_lower, lemma)
+                synonym_with_suffix = synonym + suffix
+
+                if prev_end_punct:
+                    synonym_with_suffix = synonym_with_suffix.capitalize()
+                word = synonym_with_suffix
+
+            elif prev_end_punct:
+                word = word.capitalize()
+
+        elif prev_end_punct and word[0].isalpha():
+            word = word.capitalize()
+
+        modified_text.append(word)
+        prev_end_punct = False
+
+    return ''.join([
+        ' ' + w if not re.fullmatch(r'[,.!?;:]$', w) and i != 0 else w
+        for i, w in enumerate(modified_text)
+    ])
+
+def get_suffix_from_word(word, lemma):
+    word = word.lower()
+    lemma = lemma.lower()
+    if word == lemma or not word.startswith(lemma):
+        return ''
+    return word[len(lemma):]
+
+modified_text = replace_repeated_words(text, repeated_lemmas)
+with open("izvade.txt", "w", encoding="utf-8") as f:
+    f.write(modified_text)
+
+print("\nAizvietotais teksts saglabāts failā 'izvade.txt'.")
