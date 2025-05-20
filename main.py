@@ -214,14 +214,6 @@ def select_synonyms(repeated_lemmas):
 
 lemma_to_synonym_map = select_synonyms(repeated_lemmas)
 
-# Funkcija, lai noteiktu sufiksu (piem., locījuma galotni) vārdam
-def get_suffix_from_word(word, lemma):
-    word = word.lower()
-    lemma = lemma.lower()
-    if word == lemma or not word.startswith(lemma):
-        return ''
-    return word[len(lemma):]
-
 # Teksta aizvietošana funkcija
 def replace_repeated_words(text, repeated_lemmas):
     words = re.findall(r'\b\w+\b|[^\w\s]', text, re.UNICODE)
