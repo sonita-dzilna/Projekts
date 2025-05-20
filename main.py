@@ -149,7 +149,7 @@ def select_synonyms(repeated_lemmas):
             print("Nav atkārtojošu vārdu sinonīmu izvēlei.")
             break
         
-        print("\n🔁 Atkārtojošie vārdi tekstā:")
+        print("\nAtkārtojošie vārdi tekstā:")
         print(", ".join(f"{i}. {lemma}" for i, lemma in enumerate(repeated_lemmas, 1)))
 
         selection = input("\nIevadi to vārdu numurus, kuriem meklēt sinonīmus (piemēram: 1,3,5), vai '0' lai beigtu: ").strip()
@@ -211,8 +211,6 @@ def select_synonyms(repeated_lemmas):
     return lemma_to_synonym_map
 
 
-print("\n🔁 Atkārtojošie vārdi tekstā:")
-print(", ".join(f"{i}. {lemma}" for i, lemma in enumerate(repeated_lemmas, 1)))
 
 lemma_to_synonym_map = select_synonyms(repeated_lemmas)
 
@@ -228,38 +226,28 @@ def get_suffix_from_word(word, lemma):
 def replace_repeated_words(text, repeated_lemmas):
     words = re.findall(r'\b\w+\b|[^\w\s]', text, re.UNICODE)
     modified_text = []
-    prev_end_punct = True
-    lemma_occurrence_count = {lemma: 0 for lemma in repeated_lemmas}
+    prev_end_punct = True  # Vai pēdējais simbols bija .!? (teikuma beigas)
 
     for i, word in enumerate(words):
         if re.fullmatch(r'[.!?]', word):
-            prev_end_punct = True
             modified_text.append(word)
+            prev_end_punct = True
             continue
 
         original_word = word
         word_lower = word.lower()
         lemma = get_lemma(word_lower)
 
-        if lemma in repeated_lemmas:
-            lemma_occurrence_count[lemma] += 1
-            if lemma in lemma_to_synonym_map and lemma_occurrence_count[lemma] % 2 == 0:
-                synonym = lemma_to_synonym_map[lemma]
-                suffix = get_suffix_from_word(word_lower, lemma)
-                synonym_with_suffix = synonym + suffix
-
-                # Oriģinālais vārds + sinonīms iekavās
-                replacement = f"{original_word} ({synonym_with_suffix})"
-
-                if prev_end_punct:
-                    replacement = replacement.capitalize()
-                word = replacement
-
-            elif prev_end_punct:
-                word = word.capitalize()
-
-        elif prev_end_punct and word[0].isalpha():
-            word = word.capitalize()
+        if lemma in repeated_lemmas and lemma in lemma_to_synonym_map:
+            synonym = lemma_to_synonym_map[lemma]
+            replacement = f"{original_word}回 ⊲[{synonym}]⊳"
+            if prev_end_punct and original_word[0].isalpha():
+                replacement = replacement[0].upper() + replacement[1:]
+            word = replacement
+        elif prev_end_punct and original_word[0].isalpha():
+            word = original_word.capitalize()
+        else:
+            word = original_word
 
         modified_text.append(word)
         prev_end_punct = False
