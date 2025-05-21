@@ -6,24 +6,30 @@ import re
 
 #noteikt lemma - vārda pamatforma
 def get_lemma(word):
+    if word in lemma_cache:
+        return lemma_cache[word]
+
     url = f"https://tezaurs.lv/{word}"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
+            lemma_cache[word] = word
             return word
     except requests.RequestException:
+        lemma_cache[word] = word
         return word
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # Mēģina atrast bloku ar tekstu "forma šķirklī"
     for div in soup.find_all("div", class_="listItem"):
         if "forma šķirklī" in div.get_text().lower():
             link = div.find("a", href=True)
             if link:
                 lemma = link.get_text(strip=True).lower()
+                lemma_cache[word] = lemma
                 return lemma
-            
+
+    lemma_cache[word] = word
     return word
 
 def extract_single_word_synonyms(raw_list):
@@ -56,35 +62,45 @@ def get_word_pos(word):
     for tag in pos_tags:
         text = tag.get_text(strip=True).lower()
         if text:
+            pos_lookup[word] = text  # pievieno vārdnīcai
             return text
 
     text = soup.get_text(separator="\n").lower()
     pos_words = ["lietvārds", "darbības vārds", "īpašības vārds", "skaitļa vārds", "prievārds", "saiklis", "piedēklis", "daļa", "apstākļa vārds", "vietniekvārds"]
     for pw in pos_words:
         if pw in text:
+            pos_lookup[word] = pw
             return pw
 
     return None
 
 # Funkcija sinonīmu iegūšanai
 def get_hidden_synonyms(word):
+    if word in synonym_cache:
+        return synonym_cache[word]
+
     url = f"https://tezaurs.lv/{word}"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
+            synonym_cache[word] = []
             return []
     except requests.RequestException:
+        synonym_cache[word] = []
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
     synonyms = set()
 
-    for block in soup.find_all(["div", "ul"], class_="synonyms"):
-        for item in block.find_all(["li", "span"]):
-            text = item.get_text(strip=True)
-            if text:
-                synonyms.add(text)
 
+    for block in soup.find_all(["div", "ul"], class_="synonyms"):
+        if "saistītās nozīmes" in block.lower():
+            for item in block.find_all(["li", "span"]):
+                text = item.get_text(strip=True)
+                if text:
+                    synonyms.add(text)
+
+    
     for hidden in soup.find_all(style=True):
         style = hidden['style'].replace(" ", "").lower()
         if 'display:none' in style:
@@ -93,10 +109,11 @@ def get_hidden_synonyms(word):
                 if text:
                     synonyms.add(text)
 
-    return list(synonyms)
+    synonym_cache[word] = list(synonyms)
+    return synonym_cache[word]
 
 # Vārdi, kurus vēlamies izslēgt no rezultāta
-exclude_words = {"apvidvārds", "žargonisms", "locīšana", "frazēma", "idioma", "kolokācija", "sarunvaloda", "taksons", "piemēri", "frazeoloģisms", "tulkojumi", "vārdkoptermins"}
+exclude_words = {"apvidvārds", "žargonisms", "locīšana", "frazēma", "idioma", "kolokācija", "sarunvaloda", "taksons", "piemēri", "frazeoloģisms", "tulkojumi", "vārdkoptermins", "novecojis"}
 
 # Lokāls vārdšķiru vārdnīca populārākajiem vārdiem
 pos_lookup = {
@@ -120,6 +137,8 @@ pos_lookup = {
     "suns": "lietvārds",
     "rīts": "lietvārds",
 }
+lemma_cache = {}
+synonym_cache = {}
 
 # 1. Pārbauda un izveido failu ievadei
 filename = "ievade.txt"
@@ -232,7 +251,7 @@ def replace_repeated_words(text, repeated_lemmas):
 
         if lemma in repeated_lemmas and lemma in lemma_to_synonym_map:
             synonym = lemma_to_synonym_map[lemma]
-            replacement = f"{original_word}回 ⊲[{synonym}]⊳"
+            replacement = f"{original_word} [{synonym}]"
             if prev_end_punct and original_word[0].isalpha():
                 replacement = replacement[0].upper() + replacement[1:]
             word = replacement
